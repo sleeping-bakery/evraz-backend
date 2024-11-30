@@ -95,5 +95,5 @@ public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsE
     //     return dependencies;
     // }
 
-    private static string ProjectsPath => Path.GetDirectoryName(Path.Combine(Assembly.GetExecutingAssembly().Location, @"\Projects"))!;
+    private static string ProjectsPath => Path.GetDirectoryName(Path.Combine(Assembly.GetExecutingAssembly().Location, "Projects"))!;
 }
