@@ -51,7 +51,10 @@ public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsE
                 {
                     sb.AppendLine("1. " + diagnostic.ToString().Replace(directory + @"\", ""));
                 }
-                
+
+                sb.AppendLine("---");
+                sb.Append("");
+
                 // Структура + зависимости
                 // foreach (var document in project.Documents)
                 // {

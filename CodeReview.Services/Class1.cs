@@ -16,7 +16,6 @@ namespace CodeReview.Services;
 /// </summary>
 ///
 ///
-
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -27,7 +26,6 @@ public static class Constants
 {
     public const string ApiUrl = "http://84.201.152.196:8020/v1/completions";
     public const string ApiKey = "N5b8IWHxnuy5bm53lDRJwLVpcjws6lOt";
-
 }
 
 /// <summary>
@@ -45,7 +43,8 @@ public interface IPrompt
 
 public abstract class BaseDotNetPrompt : IPrompt
 {
-    private string DefaultSystemPrompt => "Отвечай на русском языке. Давай ответы в формате .md. Ты мастер бот для ревью C# проектов. Не давай комментариев, если не нашел замечаний.";
+    private string DefaultSystemPrompt =>
+        "Отвечай на русском языке. Давай ответы в формате .md. Ты мастер бот для ревью C# проектов. Не давай комментариев, если не нашел замечаний.";
 
     public abstract string Prompt { get; set; }
     public abstract void Execute(ZipArchive zipArchive, List<Task<string>> returnedTasks);
@@ -89,7 +88,7 @@ public class DotNetProjectStructure : BaseDotNetPrompt
             catch (Exception e)
             {
                 Console.WriteLine(e);
-                return "# Модуль анализа структуры проекта отсутствует, поскольку не был получен доступ до нейросети";
+                return "# Модуль анализа структуры проекта пропущен в связи с недоступностью нейросети";
             }
         }));
     }
@@ -99,15 +98,15 @@ public class DotNetDependencyReviewer : BaseDotNetPrompt
 {
     public override string Prompt { get; set; } =
         "В соответствии с указанными требованиями проверь данные, которые тебе отправил пользователь. Требования: 1. Nuget пакеты, по возможности, должны быть обновлены до последних версий и не иметь уязвимостей. 2. Если транзитивный Nuget пакет имеет уязвимость, значит он должен быть включен в проект и обновлен до актуальной версии. 3. Проект не должен иметь лишних зависимостей или зависимостей, ссылающихся на локальные файлы (для таких зависимостей прописан абсолютный путь).";
+
     public override void Execute(ZipArchive zipArchive, List<Task<string>> returnedTasks)
     {
         returnedTasks.Add(Task.Run(async () =>
         {
             try
             {
-            var contentJson = DependencyPromptGenerator.GeneratePromptFromZip(zipArchive);
-            return await new LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(GenerateRequestContent(contentJson));
-
+                var contentJson = DependencyPromptGenerator.GeneratePromptFromZip(zipArchive);
+                return await new LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(GenerateRequestContent(contentJson));
             }
             catch (Exception e)
             {
@@ -134,7 +133,7 @@ public class LlmClient
     public async Task<string> SendRequestAsync(string contentJson)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, _apiUrl);
-        
+
         request.Headers.Add("Authorization", _authorizationKey);
         request.Content = new StringContent(contentJson, Encoding.UTF8, "application/json");
 
@@ -154,7 +153,6 @@ public class LlmClient
     }
 }
 
-
 public static class ArchiveAnalyzer
 {
     private static readonly HashSet<string> IgnoredPaths = new()
@@ -162,6 +160,7 @@ public static class ArchiveAnalyzer
         "bin", "obj", ".vs", ".vscode", ".idea", "node_modules", "test-results", "packages", "project.lock.json",
         "*.user", "*.suo", "*.userosscache", "*.sln.docstates", "*.dbmdl", "*.bak", "*.log", "*.swp", "Thumbs.db", ".DS_Store"
     };
+
     private static readonly char[] Separator = { '/', '\\' };
 
 
@@ -200,7 +199,7 @@ public interface IPromptsExecutor<T> where T : IPrompt
 
 public class DotNetPromptsExecutor : IPromptsExecutor<BaseDotNetPrompt>
 {
-    public List<BaseDotNetPrompt> Prompts { get; set; } = [ new DotNetProjectStructure(), new DotNetDependencyReviewer()];
+    public List<BaseDotNetPrompt> Prompts { get; set; } = [new DotNetProjectStructure(), new DotNetDependencyReviewer()];
 
     public async Task<StringBuilder> ExecutePrompts(ZipArchive archive, StringBuilder sb)
     {
@@ -216,12 +215,12 @@ public class DotNetPromptsExecutor : IPromptsExecutor<BaseDotNetPrompt>
         foreach (var task in returnedTasks.Where(task => !task.IsFaulted))
         {
             sb.AppendLine(task.Result);
+            sb.AppendLine("");
             sb.AppendLine("---");
             sb.AppendLine("");
         }
 
-        
-        
+
         return sb;
     }
 }
