@@ -47,23 +47,18 @@ public class ReviewController : ControllerBase
         }
         #endif  
         
+        // Устанавливаем позиции потоков в начало
         mdStream.Position = 0;
         pdfStream.Position = 0;
 
-        // Возвращаем файлы с заголовками Content-Disposition для загрузки
-        var mdFileResult = new FileStreamResult(mdStream, "application/octet-stream")
+        // Возвращаем оба файла в ответе
+        var result = new MultipartFormDataContent
         {
-            FileDownloadName = "mdFile.md"
+            { new StreamContent(mdStream), "mdFile", "mdFile.md" },
+            { new StreamContent(pdfStream), "pdfFile", "pdfFile.pdf" }
         };
 
-        var pdfFileResult = new FileStreamResult(pdfStream, "application/octet-stream")
-        {
-            FileDownloadName = "pdfFile.pdf"
-        };
-
-        // Можно вернуть их в виде нескольких файлов через сжатие или другие способы
-        // Например, возвращаем их как ZIP-архив
-        return Ok(new { mdFileResult, pdfFileResult });
+        return Ok(result); // возвращаем ответ с несколькими файлами
     }
     
     private async  Task<MemoryStream> GeneratePdfFromMarkdown(string markdownContent)
