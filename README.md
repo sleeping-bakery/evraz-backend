@@ -18,7 +18,7 @@
 Начните с того, чтобы клонировать репозиторий на свой локальный компьютер:
 
 ```bash
-git clone https://github.com/sleeping-bakery/vtb-evraz.git
+git clone https://github.com/sleeping-bakery/evraz-backend.git
 cd evraz-backend
 cd CodeReview.Devops
 docker-compose up --build -d
