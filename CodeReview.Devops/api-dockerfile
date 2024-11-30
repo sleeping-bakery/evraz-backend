@@ -44,6 +44,10 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     xdg-utils \
     libdrm2 \
-    --no-install-recommends
+    --no-install-recommends \
+    libgbm1 \
+    libu2f-udev \
+    xorg \
+    xvfb 
 
 ENTRYPOINT ["dotnet", "CodeReview.API.dll"]

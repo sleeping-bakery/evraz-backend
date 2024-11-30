@@ -240,9 +240,9 @@ public class DotNetPromptsExecutor : IPromptsExecutor<BaseDotNetPrompt>
 {
     public List<BaseDotNetPrompt> Prompts { get; set; } =
     [
-        new DotNetProjectStructure(),
-        new DotNetDependencyReviewer(),
-        new DotNetFileReviewer()
+        // new DotNetProjectStructure(),
+        // new DotNetDependencyReviewer(),
+        // new DotNetFileReviewer()
     ];
 
     public async Task<StringBuilder> ExecutePrompts(ZipArchive archive, StringBuilder sb)
