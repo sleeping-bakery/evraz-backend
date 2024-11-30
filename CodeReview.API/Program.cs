@@ -9,10 +9,12 @@ public class Program
     public static void Main(string[] args)
     {
         var path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, "Projects");
-        
+
         if (Directory.Exists(path))
             Directory.Delete(path, true);
-            
+        else
+            Directory.CreateDirectory(path);        
+        
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.
