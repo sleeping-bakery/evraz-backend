@@ -68,9 +68,10 @@ class DependencyPromptGenerator
                            .Select(hp => hp.Value)
                            .Where(hp => !string.IsNullOrWhiteSpace(hp));
 
-        if (hintPaths.Count() == 0) return;
+        var hintPathsList = hintPaths.ToList();
+        if (hintPathsList.Count == 0) return;
         prompt.AppendLine("Ссылки на локальные файлы (HintPaths):");
-        foreach (var path in hintPaths)
+        foreach (var path in hintPathsList)
         {
             prompt.AppendLine($"  - {path}");
         }

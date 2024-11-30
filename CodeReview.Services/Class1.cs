@@ -79,10 +79,18 @@ public class DotNetProjectStructure : BaseDotNetPrompt
     {
         returnedTasks.Add(Task.Run(async () =>
         {
-            var uniqueProjectStructure = ArchiveAnalyzer.GetUniqueArchiveStructure(zipArchive, 3);
-            var contentJson = GenerateRequestContent(uniqueProjectStructure);
+            try
+            {
+                var uniqueProjectStructure = ArchiveAnalyzer.GetUniqueArchiveStructure(zipArchive, 3);
+                var contentJson = GenerateRequestContent(uniqueProjectStructure);
 
-            return await new LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(contentJson);
+                return await new LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(contentJson);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return "# Модуль анализа структуры проекта отсутствует, поскольку не был получен доступ до нейросети";
+            }
         }));
     }
 }
@@ -95,8 +103,17 @@ public class DotNetDependencyReviewer : BaseDotNetPrompt
     {
         returnedTasks.Add(Task.Run(async () =>
         {
+            try
+            {
             var contentJson = DependencyPromptGenerator.GeneratePromptFromZip(zipArchive);
             return await new LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(GenerateRequestContent(contentJson));
+
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return "# Модуль ревью зависимостей пропущен в связи с недоступностью нейросети";
+            }
         }));
     }
 }
@@ -199,6 +216,8 @@ public class DotNetPromptsExecutor : IPromptsExecutor<BaseDotNetPrompt>
         foreach (var task in returnedTasks.Where(task => !task.IsFaulted))
         {
             sb.AppendLine(task.Result);
+            sb.AppendLine("---");
+            sb.AppendLine("");
         }
 
         

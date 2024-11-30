@@ -18,7 +18,7 @@ public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsE
             await Task.Delay(500);
         var sb = new StringBuilder();
 
-        // await dotNetPromptsExecutor.ExecutePrompts(zipArchive, sb);
+        await dotNetPromptsExecutor.ExecutePrompts(zipArchive, sb);
         await StaticCodeAnalyze(streamZipFile, sb);
 
         return sb.ToString();

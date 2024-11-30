@@ -8,7 +8,11 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        Directory.Delete(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)! + @"\Projects", true);
+        var path = Assembly.GetExecutingAssembly().Location + @"\Projects";
+        
+        if (Directory.Exists(path))
+            Directory.Delete(path, true);
+            
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.
