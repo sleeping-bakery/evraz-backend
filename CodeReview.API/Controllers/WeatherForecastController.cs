@@ -67,7 +67,14 @@ public class ReviewController : ControllerBase
 
         await new BrowserFetcher().DownloadAsync();  // Загружаем нужную версию Chromium
 
-        await using var browser = await Puppeteer.LaunchAsync(new LaunchOptions { Headless = true });
+        var launchOptions = new LaunchOptions
+        {
+            Headless = true, // Убедитесь, что используется headless-режим
+            Args = ["--no-sandbox", "--disable-setuid-sandbox"] // Параметры для работы на Linux
+        };
+
+        
+        await using var browser = await Puppeteer.LaunchAsync(launchOptions);
         await using var page = await browser.NewPageAsync();
         // Устанавливаем HTML-контент на странице
         await page.SetContentAsync(htmlContent);

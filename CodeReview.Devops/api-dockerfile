@@ -5,6 +5,26 @@ EXPOSE 8080
 EXPOSE 8081
 EXPOSE 1234
 
+
+
+ARG BUILD_CONFIGURATION=Release
+WORKDIR /src
+COPY ["./CodeReview.API/CodeReview.API.csproj", "CodeReview.API/"]
+RUN dotnet restore "CodeReview.API/CodeReview.API.csproj"
+COPY . .
+WORKDIR "/src/CodeReview.API"
+RUN dotnet build "CodeReview.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
+
+FROM build AS publish
+ARG BUILD_CONFIGURATION=Release
+RUN dotnet publish "CodeReview.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS final
+
+WORKDIR /app
+
+COPY --from=publish /app/publish .
+
 RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
@@ -24,23 +44,5 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     xdg-utils \
     --no-install-recommends
-
-ARG BUILD_CONFIGURATION=Release
-WORKDIR /src
-COPY ["./CodeReview.API/CodeReview.API.csproj", "CodeReview.API/"]
-RUN dotnet restore "CodeReview.API/CodeReview.API.csproj"
-COPY . .
-WORKDIR "/src/CodeReview.API"
-RUN dotnet build "CodeReview.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
-
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "CodeReview.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS final
-
-WORKDIR /app
-
-COPY --from=publish /app/publish .
 
 ENTRYPOINT ["dotnet", "CodeReview.API.dll"]
