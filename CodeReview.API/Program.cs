@@ -11,7 +11,10 @@ public class Program
         var path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, "Projects");
 
         if (Directory.Exists(path))
+        {
             Directory.Delete(path, true);
+            Directory.CreateDirectory(path);
+        }
         else
             Directory.CreateDirectory(path);        
         

@@ -7,21 +7,37 @@ using ZipArchive = SharpCompress.Archives.Zip.ZipArchive;
 
 namespace CodeReview.Services;
 
-public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsExecutor)
+public class CodeReviewService(DotNetFileReviewer.IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsExecutor)
 {
-    public async Task<string> DotNetReviewStreamZipFile(Stream streamZipFile)
+    public async Task<string> DotNetReviewStreamZipFile(Stream streamZipFile, int timeout)
     {
-        using var zipArchive = ZipArchive.Open(streamZipFile);
+        var zipArchive = ZipArchive.Open(streamZipFile);
+        if (zipArchive == null)
+            throw new ArgumentException("Zip file is empty", nameof(streamZipFile));
 
-        // Особенность используемой библиотеки, не сразу подгружает все файлы в архив
-        if (zipArchive.Entries.Count < 3)
-            await Task.Delay(500);
-        var sb = new StringBuilder();
+        try
+        {
+            var cancellationTokenSource = new CancellationTokenSource(timeout);
 
-        await dotNetPromptsExecutor.ExecutePrompts(zipArchive, sb);
-        await StaticCodeAnalyze(streamZipFile, sb);
+            // Особенность используемой библиотеки, не сразу подгружает все файлы в архив
+            await Task.Delay(5000, cancellationTokenSource.Token);
+            var sb = new StringBuilder();
 
-        return sb.ToString();
+            var sourceStreamForPrompts = StreamCloner.CloneStream(streamZipFile);
+            var streamForSca = StreamCloner.CloneStream(streamZipFile);
+            
+            await Task.WhenAll([
+                // ReSharper disable once MethodSupportsCancellation
+                Task.Run(async () => await dotNetPromptsExecutor.ExecutePrompts(sourceStreamForPrompts, sb, cancellationTokenSource.Token)),
+                Task.Run(async () => await StaticCodeAnalyze(streamForSca, sb), cancellationTokenSource.Token)
+            ]);
+
+            return sb.ToString();
+        }
+        finally
+        {
+            zipArchive?.Dispose();
+        }
     }
 
     private static async Task StaticCodeAnalyze(Stream streamZipFile, StringBuilder sb)
@@ -37,15 +53,15 @@ public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsE
             var solution = await workspace.OpenSolutionAsync(solutionPath);
             if (!solution.Projects.Any()) continue;
             var directory = new FileInfo(slnFile).Directory!.FullName;
-            
+
             foreach (var project in solution.Projects)
             {
                 //SCA
                 sb.AppendLine($"# Анализ проекта {project.Name}");
-                
+
                 var compilation = await project.GetCompilationAsync();
                 var diagnostics = compilation!.GetDiagnostics();
-                
+
                 // Выводим диагностические сообщения (ошибки, предупреждения)
                 foreach (var diagnostic in diagnostics)
                 {
@@ -54,46 +70,10 @@ public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsE
 
                 sb.AppendLine("---");
                 sb.Append("");
-
-                // Структура + зависимости
-                // foreach (var document in project.Documents)
-                // {
-                //     var syntaxTree = document.GetSyntaxTreeAsync().Result;
-                //     var root = syntaxTree?.GetRoot();
-                //
-                //     // Ищем зависимости между классами и методами
-                //     var classDeclarations = root?.DescendantNodes().OfType<ClassDeclarationSyntax>();
-                //     if (classDeclarations == null) continue;
-                //     foreach (var classDecl in classDeclarations)
-                //     {
-                //         Console.Write($"Class:{classDecl.Identifier.Text}");
-                //         var methods = classDecl.Members.OfType<MethodDeclarationSyntax>();
-                //
-                //         foreach (var method in methods)
-                //         {
-                //             var dependencies = GetDependencies(method);
-                //             if (dependencies.Count != 0)
-                //             {
-                //                 Console.Write($"{method.Identifier.Text}-{string.Join(",", dependencies)}".Split('\n')[0] );
-                //             }
-                //         }
-                //     }
-                // }
             }
         }
+        Console.WriteLine("Генерация SCA успешно окончена");
     }
-
-    // private static List<string> GetDependencies(MethodDeclarationSyntax method)
-    // {
-    //     // Пример поиска зависимостей (поля, методы, другие классы)
-    //     var classDeclarations = method.DescendantNodes().OfType<ClassDeclarationSyntax>();
-    //     var dependencies = classDeclarations.Select(classDecl => classDecl.Identifier.Text).ToList();
-    //
-    //     var methodCalls = method.DescendantNodes().OfType<InvocationExpressionSyntax>();
-    //     dependencies.AddRange(methodCalls.Select(invocation => invocation.Expression.ToString()));
-    //
-    //     return dependencies;
-    // }
 
     private static string ProjectsPath => Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, "Projects");
 }
