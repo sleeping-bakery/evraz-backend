@@ -51,16 +51,25 @@ public class ReviewController : ControllerBase
         mdStream.Position = 0;
         pdfStream.Position = 0;
 
-        // Возвращаем оба файла в ответе
-        var result = new MultipartFormDataContent
+        var mdBase64 = Convert.ToBase64String(mdStream.ToArray());
+        var pdfBase64 = Convert.ToBase64String(pdfStream.ToArray());
+        
+        var files = new List<FileDto>
         {
-            { new StreamContent(mdStream), "mdFile", "mdFile.md" },
-            { new StreamContent(pdfStream), "pdfFile", "pdfFile.pdf" }
+            new() { FileName = "mdFile.md", FileContentBase64 = mdBase64 },
+            new() { FileName = "pdfFile.pdf", FileContentBase64 = pdfBase64 }
         };
 
-        return Ok(result); // возвращаем ответ с несколькими файлами
+        // Возвращаем список файлов как JSON
+        return Ok(files);
+        
     }
-    
+
+    private class FileDto
+    {
+        public string FileName { get; set; }
+        public string FileContentBase64 { get; set; }
+    }
     private async  Task<MemoryStream> GeneratePdfFromMarkdown(string markdownContent)
     {
         // Преобразуем Markdown в HTML
