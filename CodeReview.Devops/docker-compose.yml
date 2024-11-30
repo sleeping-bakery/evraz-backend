@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: ../
+      dockerfile: ./CodeReview.Devops/api-dockerfile
+    ports:
+      - 1234:1234
+    expose:
+      - "8080"
+    networks:
+      - backend-network
+    env_file:
+      - .env
+
+networks:
+  backend-network:
+    driver: bridge
