@@ -163,7 +163,7 @@ public class LlmClient
     public LlmClient(string apiUrl, string authorizationKey)
     {
         _httpClient = new HttpClient();
-        _httpClient.Timeout = TimeSpan.FromMinutes(10);
+        _httpClient.Timeout = TimeSpan.FromMinutes(60);
         _apiUrl = apiUrl;
         _authorizationKey = authorizationKey;
     }

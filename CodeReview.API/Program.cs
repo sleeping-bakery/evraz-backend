@@ -8,7 +8,7 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        var path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + @"\Projects");
+        var path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, "Projects");
         
         if (Directory.Exists(path))
             Directory.Delete(path, true);
@@ -19,7 +19,7 @@ public class Program
 
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.Limits.MaxRequestBodySize = 500_000_000;  // 200 MB, установите нужное значение
+            options.Limits.MaxRequestBodySize = 500_000_000;  // 500 MB, установите нужное значение
         });        
         
         builder.Services.Configure<FormOptions>(options =>
