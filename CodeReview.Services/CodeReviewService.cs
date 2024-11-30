@@ -28,8 +28,8 @@ public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsE
     {
         streamZipFile.Position = 0;
         var projectGuid = @"\" + Guid.NewGuid();
-        ZipFile.ExtractToDirectory(streamZipFile, Path.Combine(ProjectsPath, projectGuid));
-        var slnFiles = Directory.GetFiles(Path.Combine(ProjectsPath, projectGuid), "*.sln", SearchOption.AllDirectories);
+        ZipFile.ExtractToDirectory(streamZipFile, Path.Combine(ProjectsPath + projectGuid));
+        var slnFiles = Directory.GetFiles(Path.Combine(ProjectsPath + projectGuid), "*.sln", SearchOption.AllDirectories);
         foreach (var slnFile in slnFiles)
         {
             var solutionPath = Path.GetFullPath(slnFile); // Получаем абсолютный путь
@@ -95,5 +95,5 @@ public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsE
     //     return dependencies;
     // }
 
-    private static string ProjectsPath => Path.GetDirectoryName(Path.Combine(Assembly.GetExecutingAssembly().Location, @"\Projects"))!;
+    private static string ProjectsPath => Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + @"\Projects");
 }

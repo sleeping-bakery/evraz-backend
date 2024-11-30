@@ -8,7 +8,7 @@ public class Program
 {
     public static void Main(string[] args)
     {
-        var path = Path.Combine(Assembly.GetExecutingAssembly().Location, "Projects");
+        var path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + @"\Projects");
         
         if (Directory.Exists(path))
             Directory.Delete(path, true);
