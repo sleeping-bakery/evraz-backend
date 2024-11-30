@@ -43,7 +43,7 @@ public interface IPrompt
 
 public abstract class BaseDotNetPrompt : IPrompt
 {
-    private string DefaultSystemPrompt =>
+    protected string DefaultSystemPrompt =>
         "Отвечай на русском языке. Давай ответы в формате .md. Ты мастер бот для ревью C# проектов. Не давай комментариев, если не нашел замечаний.";
 
     public abstract string Prompt { get; set; }
@@ -57,7 +57,7 @@ public abstract class BaseDotNetPrompt : IPrompt
             messages = new[]
             {
                 new { role = "system", content = DefaultSystemPrompt },
-                new { role = "user", content = Prompt },
+                new { role = "system", content = Prompt },
                 new { role = "user", content = stringForReview }
             },
             max_tokens = 1024,
@@ -88,7 +88,7 @@ public class DotNetProjectStructure : BaseDotNetPrompt
             catch (Exception e)
             {
                 Console.WriteLine(e);
-                return "# Модуль анализа структуры проекта пропущен в связи с недоступностью нейросети";
+                return $"# Модуль анализа структуры проекта пропущен в связи с недоступностью нейросети\nОшибка: {e.Message}";
             }
         }));
     }
@@ -111,9 +111,46 @@ public class DotNetDependencyReviewer : BaseDotNetPrompt
             catch (Exception e)
             {
                 Console.WriteLine(e);
-                return "# Модуль ревью зависимостей пропущен в связи с недоступностью нейросети";
+                return $"# Модуль ревью зависимостей пропущен в связи с недоступностью нейросети\nОшибка: {e.Message}";
             }
         }));
+    }
+}
+
+public class DotNetFileReviewer : BaseDotNetPrompt
+{
+    private static readonly HashSet<string> IgnoredDirectories = new()
+    {
+        "bin", "obj", "node_modules", "test-results", "packages", "migrations", "Thumbs.db", ".DS_Store"
+    };
+    public override string Prompt { get; set; } =
+        "Проверь предоставленный код на следующие пункты:1.Нет неразрешённых TODO,закомментированного или неиспользуемого кода,а также атрибутов Obsolete(удалить,если возможно).Комментарии обязательны для моделей,сущностей и методов.Неиспользуемые переменные и возвраты должны быть устранены.2.Логические ошибки:2.1.Дублирование сообщений при логировании исключений.2.2.Объединение строк через +,вместо использования необработанных строк.2.3.Прямые вычисления вместо методов конвертации.2.4.Лишние проверки для арифметических операций.3.Ошибки архитектуры и дизайна:3.1.Неправильная регистрация HostedService в IoC(должен быть Singleton).3.2.Возврат пустой коллекции вместо null.3.3.Коллекция не должна содержать null элементов.3.4.Проверка аргументов проводится в методе,а не в месте вызова.3.5.При исключении вместо null метод должен бросать исключение.3.6.Использование интерфейсов коллекций внутри метода вместо конкретной реализации.4.Ошибки LINQ:4.1.Использование Skip().Take() вместо Chunk().4.2.Применение Union(), Except(), Intersect(), Distinct(), SequenceEqual() без переопределения Equals() и GetHashCode() или реализации IEquatable<T>.4.3.Лишний вызов Distinct() после Union().4.4.Избыточные вызовы ToArray() или ToList().5.Ошибки Entity Framework:5.1.Использование синхронной материализации вместо асинхронной.5.2.Удаление сущностей в цикле.5.3.Лишняя материализация при удалении элементов.5.4.Частые вызовы SaveChangesAsync() вместо пакетной обработки.5.5.Выполнение фильтрации на стороне приложения вместо базы данных. 5.6.Использование AddAsync() или AddRangeAsync() безqlServerValueGenerationStrategy.SequenceHiLo.6.Общие критерии:6.1.Соответствие кодстайлу и стандартам разработки.6.2.Оптимизация кода под LINQ и Entity Framework.6.3.Исправление распространённых ошибок и обеспечение корректности архитектуры.Предлагай исправления по замечаниям к коду и указывай номер строки файла, где нашел замечания. Если код соответствует пунктам, ИГНОРИРУЙХ ПУНКТЫ";
+
+    public override void Execute(ZipArchive zipArchive, List<Task<string>> returnedTasks)
+    {
+        var entries = zipArchive.Entries
+            .Where(entry => !entry.IsDirectory && entry.Key!.EndsWith(".cs"))
+            .ToList();
+        
+        foreach (var entry in entries)
+        {
+            if (IgnoredDirectories.Any(ignoredDirectory => entry.Key!.ToUpper().Contains(ignoredDirectory.ToUpper())))
+                continue;
+                
+            var csFileString = new StreamReader(entry.OpenEntryStream()).ReadToEnd();
+            returnedTasks.Add(Task.Run(async () =>
+            {
+                try
+                {
+                    return $"# Файл {entry.Key}\n" + await new LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(GenerateRequestContent(csFileString));
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    return $"# Файл {entry.Key} был пропущен\nПо причине: {e.Message} Если ошибка гласит о превышении количества токенов, то и без нейросети ответ: разбейте код на несколько модулей и предоставьте их в виде нескольких файлов";
+                }
+            }));
+        }
     }
 }
 
@@ -126,6 +163,7 @@ public class LlmClient
     public LlmClient(string apiUrl, string authorizationKey)
     {
         _httpClient = new HttpClient();
+        _httpClient.Timeout = TimeSpan.FromMinutes(10);
         _apiUrl = apiUrl;
         _authorizationKey = authorizationKey;
     }
@@ -140,7 +178,8 @@ public class LlmClient
         var response = await _httpClient.SendAsync(request);
         var responseBody = await response.Content.ReadAsStringAsync();
 
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode) 
+            throw new Exception(await response.Content.ReadAsStringAsync()) ;
 
         var llmAnswer = JsonSerializer.Deserialize<LlmAnswer>(responseBody);
 
@@ -199,7 +238,12 @@ public interface IPromptsExecutor<T> where T : IPrompt
 
 public class DotNetPromptsExecutor : IPromptsExecutor<BaseDotNetPrompt>
 {
-    public List<BaseDotNetPrompt> Prompts { get; set; } = [new DotNetProjectStructure(), new DotNetDependencyReviewer()];
+    public List<BaseDotNetPrompt> Prompts { get; set; } =
+    [
+        new DotNetProjectStructure(),
+        new DotNetDependencyReviewer(),
+        new DotNetFileReviewer()
+    ];
 
     public async Task<StringBuilder> ExecutePrompts(ZipArchive archive, StringBuilder sb)
     {
