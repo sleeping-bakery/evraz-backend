@@ -43,6 +43,7 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
+    libdrm2 \
     --no-install-recommends
 
 ENTRYPOINT ["dotnet", "CodeReview.API.dll"]

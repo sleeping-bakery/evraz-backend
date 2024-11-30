@@ -29,6 +29,14 @@ public class Program
             options.MultipartBodyLengthLimit = 500_000_000; // Установите максимальный размер (в байтах)
         });
 
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("AllowAll",
+                policy => policy.AllowAnyOrigin()  // Разрешить любой источник
+                    .AllowAnyMethod()  // Разрешить любой HTTP метод
+                    .AllowAnyHeader());  // Разрешить любые заголовки
+        });
+
         
         builder.Services.AddControllers();
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -41,7 +49,7 @@ public class Program
         app.UseSwagger();
         app.UseSwaggerUI();
         app.UseHttpsRedirection();
-
+        app.UseCors("AllowAll");
         app.UseAuthorization();
 
 
