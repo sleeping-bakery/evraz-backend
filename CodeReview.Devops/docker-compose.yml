@@ -11,3 +11,4 @@ services:
       - "1234"
       - "8080"
       - "8081"
+    restart: always
