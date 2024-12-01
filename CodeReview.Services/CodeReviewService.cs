@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
@@ -9,34 +10,52 @@ namespace CodeReview.Services;
 
 public class CodeReviewService(DotNetFileReviewer.IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsExecutor)
 {
-    public async Task<string> DotNetReviewStreamZipFile(Stream streamZipFile, int timeout)
+    public async Task<string> DotNetReviewStreamZipFile(Stream streamZipFile, int timeout, CancellationToken token)
     {
         var zipArchive = ZipArchive.Open(streamZipFile);
         if (zipArchive == null)
             throw new ArgumentException("Zip file is empty", nameof(streamZipFile));
-
+        var sourceStreamForPrompts = StreamCloner.CloneStream(streamZipFile);
+        var streamForSca = StreamCloner.CloneStream(streamZipFile);
         try
         {
             var cancellationTokenSource = new CancellationTokenSource(timeout);
 
-            // Особенность используемой библиотеки, не сразу подгружает все файлы в архив
-            await Task.Delay(5000, cancellationTokenSource.Token);
-            var sb = new StringBuilder();
+            // Создаем комбинированный токен (связываем token и cancellationTokenSource.Token)
+            var combinedToken = CancellationTokenSource.CreateLinkedTokenSource(token, cancellationTokenSource.Token).Token;
 
-            var sourceStreamForPrompts = StreamCloner.CloneStream(streamZipFile);
-            var streamForSca = StreamCloner.CloneStream(streamZipFile);
-            
+
+            // Особенность используемой библиотеки, не сразу подгружает все файлы в архив
+            await Task.Delay(5000, combinedToken);
+            var sb = new StringBuilder();
+            var sbSca = new StringBuilder();
             await Task.WhenAll([
                 // ReSharper disable once MethodSupportsCancellation
-                Task.Run(async () => await dotNetPromptsExecutor.ExecutePrompts(sourceStreamForPrompts, sb, cancellationTokenSource.Token)),
-                Task.Run(async () => await StaticCodeAnalyze(streamForSca, sb), cancellationTokenSource.Token)
+                Task.Run(async () => await dotNetPromptsExecutor.ExecutePrompts(sourceStreamForPrompts, sb, combinedToken)),
+                Task.Run(async () => await StaticCodeAnalyze(streamForSca, sbSca), combinedToken)
             ]);
+            sb.Append(sbSca);
 
             return sb.ToString();
         }
         finally
         {
-            zipArchive?.Dispose();
+            zipArchive.Dispose();
+            await sourceStreamForPrompts.DisposeAsync();
+            await streamForSca.DisposeAsync();
+            
+            var unmanagedPointer = IntPtr.Zero;
+            if (unmanagedPointer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(unmanagedPointer);
+                Console.WriteLine("Unmanaged memory has been freed.");
+            }
+            GC.Collect(2, GCCollectionMode.Forced);
+        
+            // Стимулируем сборку мусора с оптимизированной сборкой LOH
+            GC.Collect(2, GCCollectionMode.Optimized);
+        
+            Console.WriteLine("LOH очистился (попытка).");
         }
     }
 

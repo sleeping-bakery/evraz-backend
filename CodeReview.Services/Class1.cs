@@ -22,13 +22,15 @@ public static class Constants
 ///
 ///
 ///
-public class TaskResult(string name, string result, Func<string, Task<TaskResult>> func)
+public class TaskResult(string name, string result, Func<string, Task<TaskResult>> func, bool success)
 {
     public string Name { get; set; } = name;
     public string Result { get; set; } = result;
     public DateTime TimeEnd { get; set; } = DateTime.Now;
 
     public Func<string, Task<TaskResult>> Func = func;
+
+    public bool Success = success;
 }
 
 public interface IPrompt
@@ -96,12 +98,12 @@ public class DotNetProjectStructure : BaseDotNetPrompt
                 var result = await new DotNetFileReviewer.LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(contentJson);
 
                 Console.WriteLine($"Задача {taskName} успешно окончена");
-                return new TaskResult(taskName, result, Tasks[taskName]);
+                return new TaskResult(taskName, result, Tasks[taskName], true);
             }
             catch (Exception e)
             {
                 Console.WriteLine($"Задача завершилась с ошибкой с ошибкой {taskName} " + e);
-                return new TaskResult(taskName, $"# Модуль анализа структуры проекта пропущен в связи с недоступностью нейросети\nОшибка: {e.Message}", Tasks[taskName]);
+                return new TaskResult(taskName, $"# Модуль анализа структуры проекта пропущен в связи с недоступностью нейросети\nОшибка: {e.Message}", Tasks[taskName], false);
             }
         });
     }
@@ -125,12 +127,12 @@ public class DotNetDependencyReviewer : BaseDotNetPrompt
                 var result = await new DotNetFileReviewer.LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(GenerateRequestContent(contentJson));
 
                 Console.WriteLine($"Задача {taskName} успешно окончена");
-                return new TaskResult(taskName, result, Tasks[taskName]);
+                return new TaskResult(taskName, result, Tasks[taskName], true);
             }
             catch (Exception e)
             {
                 Console.WriteLine($"Задача завершилась с ошибкой с ошибкой {taskName} " + e);
-                return new TaskResult(taskName, $"# Модуль ревью зависимостей пропущен в связи с недоступностью нейросети\nОшибка: {e.Message}", Tasks[taskName]);
+                return new TaskResult(taskName, $"# Модуль ревью зависимостей пропущен в связи с недоступностью нейросети\nОшибка: {e.Message}", Tasks[taskName], false);
             }
         });
     }
@@ -162,23 +164,27 @@ public class DotNetFileReviewer : BaseDotNetPrompt
             using var entryStream = entry.OpenEntryStream();
             var seekableStream = DotNetPromptsExecutor.MakeStreamSeekable(entryStream);
             var csFileString = new StreamReader(seekableStream).ReadToEnd();
-            
+
             Tasks.Add(entry.Key!, async taskName =>
             {
                 Console.WriteLine($"Задача {taskName} начата");
                 try
                 {
                     var result = await new LlmClient(Constants.ApiUrl, Constants.ApiKey).SendRequestAsync(GenerateRequestContent(csFileString));
-                    Console.WriteLine($"Задача {taskName} успешно окончена");
+                    Console.WriteLine($"Задача {taskName} успешно окончена {DateTime.Now}");
 
-                    return new TaskResult(taskName, $"# Файл {entry.Key}\n" + result, Tasks[taskName]);
+                    return new TaskResult(taskName, $"# Файл {entry.Key}\n" + result, Tasks[taskName], true);
                 }
                 catch (Exception e)
                 {
+                    var defaultSuccess = false;
+                    
+                    if (e.Message.Contains("max_tokens"))
+                        defaultSuccess = true;
                     Console.WriteLine($"Задача завершилась с ошибкой с ошибкой {taskName} " + e);
                     return new TaskResult(taskName,
                         $"# Файл {entry.Key} был пропущен\nПо причине: {e.Message} Если ошибка гласит о превышении количества токенов, то и без нейросети ответ: разбейте код на несколько модулей и предоставьте их в виде нескольких файлов",
-                        Tasks[taskName]);
+                        Tasks[taskName], defaultSuccess);
                 }
             });
         }
@@ -193,32 +199,39 @@ public class DotNetFileReviewer : BaseDotNetPrompt
         public LlmClient(string apiUrl, string authorizationKey)
         {
             _httpClient = new HttpClient();
-            _httpClient.Timeout = TimeSpan.FromMinutes(60);
+            _httpClient.Timeout = TimeSpan.FromMinutes(600);
             _apiUrl = apiUrl;
             _authorizationKey = authorizationKey;
         }
 
         public async Task<string> SendRequestAsync(string contentJson)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, _apiUrl);
-
-            request.Headers.Add("Authorization", _authorizationKey);
-            request.Content = new StringContent(contentJson, Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.SendAsync(request);
-            var responseBody = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-                throw new Exception(await response.Content.ReadAsStringAsync());
-
-            var llmAnswer = JsonSerializer.Deserialize<LlmAnswer>(responseBody);
-
-            if (llmAnswer == null || llmAnswer.Choices.Count == 0)
+            try
             {
-                throw new InvalidOperationException("Invalid response from LLM API.");
-            }
+                using var request = new HttpRequestMessage(HttpMethod.Post, _apiUrl);
 
-            return System.Text.RegularExpressions.Regex.Unescape(llmAnswer.Choices[0].Message.Content);
+                request.Headers.Add("Authorization", _authorizationKey);
+                request.Content = new StringContent(contentJson, Encoding.UTF8, "application/json");
+
+                var response = await _httpClient.SendAsync(request);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                    throw new Exception(await response.Content.ReadAsStringAsync());
+
+                var llmAnswer = JsonSerializer.Deserialize<LlmAnswer>(responseBody);
+
+                if (llmAnswer == null || llmAnswer.Choices.Count == 0)
+                {
+                    throw new InvalidOperationException("Invalid response from LLM API.");
+                }
+
+                return System.Text.RegularExpressions.Regex.Unescape(llmAnswer.Choices[0].Message.Content);
+            }
+            finally
+            {
+                _httpClient.Dispose();
+            }
         }
     }
 
@@ -269,7 +282,6 @@ public class DotNetFileReviewer : BaseDotNetPrompt
 
     public class DotNetPromptsExecutor : IPromptsExecutor<BaseDotNetPrompt>
     {
-
         public List<BaseDotNetPrompt> Prompts { get; set; } =
         [
             new DotNetProjectStructure(),
@@ -280,43 +292,76 @@ public class DotNetFileReviewer : BaseDotNetPrompt
         public async Task<StringBuilder> ExecutePrompts(Stream stream, StringBuilder sb, CancellationToken token)
         {
             var returnedTasks = new List<Task<TaskResult>>();
-            var streams = Prompts.Select(prompt => StreamCloner.CloneStream(stream)).ToList();
-
-
-            for (var index = 0; index < Prompts.Count; index++)
+            var clonedStreams = Prompts.Select(_ => StreamCloner.CloneStream(stream)).ToList();
+            try
             {
-                Prompts[index].Execute(ZipArchive.Open(streams[index]), returnedTasks, token);
-            }
-
-            var uniqueTasks = new Dictionary<string, Task<TaskResult>>();
-
-            while (returnedTasks.Any(returnedTask => !returnedTask.IsCompleted))
-            {
-                await Task.WhenAll(returnedTasks);
-
-                foreach (var returnedTask in returnedTasks.Where(task => !task.IsCanceled))
+                for (var index = 0; index < Prompts.Count; index++)
                 {
-                    if (!uniqueTasks.TryGetValue(returnedTask.Result.Name, out var existingTask) ||
-                        existingTask.Result.TimeEnd < returnedTask.Result.TimeEnd)
-                        uniqueTasks[returnedTask.Result.Name] = returnedTask;
+                    Prompts[index].Execute(ZipArchive.Open(clonedStreams[index]), returnedTasks, token);
                 }
 
-                returnedTasks.AddRange(returnedTasks.Where(returnedTask => returnedTask.IsFaulted)
-                    .Select(faultedTask => Task.Run(async () => await faultedTask.Result.Func(faultedTask.Result.Name), token)));
-            }
+                var uniqueTasks = new Dictionary<string, Task<TaskResult>>();
 
-            
-            sb.AppendLine($"Дата отчета: {DateTime.Now}");
-            foreach (var task in returnedTasks.Where(task => !task.IsCanceled))
+                while (returnedTasks.Where(returnedTask => !returnedTask.IsCanceled).Any(returnedTask => !returnedTask.Result.Success))
+                {
+                    await Task.WhenAll(returnedTasks);
+
+                    foreach (var returnedTask in returnedTasks)
+                    {
+                        if (!uniqueTasks.TryGetValue(returnedTask.Result.Name, out var existingTask) ||
+                            (existingTask.Result.TimeEnd < returnedTask.Result.TimeEnd && returnedTask.Result.Success))
+                            uniqueTasks[returnedTask.Result.Name] = returnedTask;
+                    }
+
+                    returnedTasks = returnedTasks.Where(task => task is { IsCanceled: false, Result.Success: false })
+                        .Select(faultedTask => Task.Run(async () => await faultedTask.Result.Func(faultedTask.Result.Name), token)).ToList();
+                }
+
+                foreach (var clonedStream in clonedStreams)
+                {
+                    await clonedStream.DisposeAsync();
+                }
+
+                sb.AppendLine($"Дата отчета: {DateTime.Now}");
+
+                try
+                {
+                    sb.AppendLine(uniqueTasks[nameof(DotNetDependencyReviewer)].Result.Result);
+                    uniqueTasks.Remove(nameof(DotNetDependencyReviewer));
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                try
+                {
+                    sb.AppendLine(uniqueTasks[nameof(DotNetProjectStructure)].Result.Result);
+                    uniqueTasks.Remove(nameof(DotNetProjectStructure));
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                foreach (var uniqueTask in uniqueTasks.Where(uniqueTask => !uniqueTask.Value.IsCanceled).OrderByDescending(uniqueTask => uniqueTask.Value.Result.TimeEnd))
+                {
+                    sb.AppendLine(uniqueTask.Value.Result.Result);
+                    sb.AppendLine("");
+                    sb.AppendLine("---");
+                    sb.AppendLine("");
+                }
+
+
+                return sb;
+            }
+            finally
             {
-                sb.AppendLine(task.Result.Result);
-                sb.AppendLine("");
-                sb.AppendLine("---");
-                sb.AppendLine("");
+                foreach (var clonedStream in clonedStreams)
+                {
+                    await clonedStream.DisposeAsync();
+                }
             }
-
-
-            return sb;
         }
 
         public static Stream MakeStreamSeekable(Stream inputStream)

@@ -11,7 +11,7 @@ public class ReviewController : ControllerBase
 {
 
     [HttpPost]
-    public async Task<IActionResult> UploadFile(IFormFile? file, [FromForm] int timeout)
+    public async Task<IActionResult> UploadFile(IFormFile? file, [FromForm] int timeout, CancellationToken token)
     {
         if (file == null || file.Length == 0)
         {
@@ -20,7 +20,7 @@ public class ReviewController : ControllerBase
 
         // Получаем поток из загруженного файла
         await using var stream = file.OpenReadStream();
-        var mdString = await new CodeReviewService(new DotNetFileReviewer.DotNetPromptsExecutor()).DotNetReviewStreamZipFile(stream, timeout * 60 * 1000);
+        var mdString = await new CodeReviewService(new DotNetFileReviewer.DotNetPromptsExecutor()).DotNetReviewStreamZipFile(stream, timeout * 60 * 1000, token);
         
         var pdfStream = await GeneratePdfFromMarkdown(mdString);
 
