@@ -73,7 +73,7 @@ public class ReviewController : ControllerBase
     }
 
     [HttpPost("Multiple")]
-    public async Task<IActionResult> UploadFiles(List<IFormFile> files, [FromForm] int timeout, CancellationToken token)
+    public async Task<IActionResult> UploadFiles(List<IFormFile> file, [FromForm] int timeout, CancellationToken token)
     {
         var memoryStream = new MemoryStream();
 
@@ -81,13 +81,13 @@ public class ReviewController : ControllerBase
         using (var archive = new System.IO.Compression.ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
         {
             // Добавляем файлы в архив
-            foreach (var file in files.Where(f => f.Length > 0))
+            foreach (var formFile in file.Where(f => f.Length > 0))
             {
                 // Создаем запись в архиве для каждого файла
-                var entry = archive.CreateEntry(file.FileName, CompressionLevel.Optimal);
+                var entry = archive.CreateEntry(formFile.FileName, CompressionLevel.Optimal);
 
                 await using var entryStream = entry.Open();
-                await using var fileStream = file.OpenReadStream();
+                await using var fileStream = formFile.OpenReadStream();
 
                 // Копируем данные из файла в запись архива
                 await fileStream.CopyToAsync(entryStream, token);
