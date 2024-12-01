@@ -5,7 +5,7 @@ using SharpCompress.Archives.Zip;
 
 namespace CodeReview.Services.Helpers;
 
-internal class DependencyPromptGenerator
+internal abstract class DependencyPromptGenerator
 {
     public static string GeneratePromptFromZip(ZipArchive archive)
     {
