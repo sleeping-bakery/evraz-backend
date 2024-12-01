@@ -304,8 +304,11 @@ public class DotNetFileReviewer : BaseDotNetPrompt
                             uniqueTasks[returnedTask.Result.Name] = returnedTask;
                     }
 
-                    returnedTasks = returnedTasks.Where(task => task is { IsCanceled: false, Result.Success: false })
+                    var filteredTasks = returnedTasks.Where(task => task is { IsCanceled: false, Result.Success: false })
                         .Select(faultedTask => Task.Run(async () => await faultedTask.Result.Func(faultedTask.Result.Name), token)).ToList();
+                    if (filteredTasks.Count == returnedTasks.Count)
+                        await Task.Delay(10000, token);
+                    returnedTasks = filteredTasks;
                 }
 
                 foreach (var clonedStream in clonedStreams)
