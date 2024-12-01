@@ -307,7 +307,8 @@ public class DotNetFileReviewer : BaseDotNetPrompt
                     var filteredTasks = returnedTasks.Where(task => task is { IsCanceled: false, Result.Success: false })
                         .Select(faultedTask => Task.Run(async () => await faultedTask.Result.Func(faultedTask.Result.Name), token)).ToList();
                     if (filteredTasks.Count == returnedTasks.Count)
-                        await Task.Delay(10000, token);
+                        throw new Exception("На данный момент сервер LLM не принимает сообщения, попробуйте позже");
+                    
                     returnedTasks = filteredTasks;
                 }
 
