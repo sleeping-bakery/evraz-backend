@@ -14,14 +14,6 @@ public static class Constants
     public const string ApiKey = "N5b8IWHxnuy5bm53lDRJwLVpcjws6lOt";
 }
 
-/// <summary>
-/// 1. Получение файлов
-/// 2. Получение структуры файлов
-/// 3. Ревью структуры файлов
-/// </summary>
-///
-///
-///
 public class TaskResult(string name, string result, Func<string, Task<TaskResult>> func, bool success)
 {
     public string Name { get; set; } = name;

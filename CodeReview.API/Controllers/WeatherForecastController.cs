@@ -1,3 +1,4 @@
+using System.Text;
 using CodeReview.Services;
 using Markdig;
 using Microsoft.AspNetCore.Mvc;
@@ -17,27 +18,27 @@ public class ReviewController : ControllerBase
         {
             return BadRequest("No file uploaded.");
         }
-
+        
         // Получаем поток из загруженного файла
         await using var stream = file.OpenReadStream();
         var mdString = await new CodeReviewService(new DotNetFileReviewer.DotNetPromptsExecutor()).DotNetReviewStreamZipFile(stream, timeout * 60 * 1000, token);
         
         var pdfStream = await GeneratePdfFromMarkdown(mdString);
-
+        
         // Генерация MD файла (просто передаем как текст)
         var mdStream = new MemoryStream();
         var writer = new StreamWriter(mdStream);
         writer.Write(mdString);
         writer.Flush();
         mdStream.Position = 0;
-
+        
         #if DEBUG
         await using (var fileStream = new FileStream(@"C:\Users\Vadim\Desktop\check.md", FileMode.Create, FileAccess.Write))
         {
             // Копируем данные из MemoryStream в файл
             await mdStream.CopyToAsync(fileStream);
         }
-
+        
         await using (var fileStream = new FileStream(@"C:\Users\Vadim\Desktop\check.pdf", FileMode.Create, FileAccess.Write))
         {
             // Копируем данные из MemoryStream в файл
@@ -88,7 +89,16 @@ public class ReviewController : ControllerBase
         await page.SetContentAsync(htmlContent);
 
         // Генерируем PDF и возвращаем в виде потока
-        var pdfStream = new MemoryStream(await page.PdfDataAsync());
-        return pdfStream;
+        try
+        {
+            var pdfStream = new MemoryStream(await page.PdfDataAsync());
+            return pdfStream;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine("Ошибка при генерации PDF: " + e);
+            return new MemoryStream(Encoding.UTF8.GetBytes("PDF генератор не выдержал такого объема :("));
+        }
+        
     }
 }
