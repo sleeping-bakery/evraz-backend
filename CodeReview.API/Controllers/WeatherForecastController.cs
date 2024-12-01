@@ -1,8 +1,12 @@
+using System.IO.Compression;
 using System.Text;
 using CodeReview.Services;
 using Markdig;
 using Microsoft.AspNetCore.Mvc;
 using PuppeteerSharp;
+using SharpCompress.Common;
+using SharpCompress.Writers;
+using ZipArchive = SharpCompress.Archives.Zip.ZipArchive;
 
 namespace CodeReview.API.Controllers;
 
@@ -10,7 +14,6 @@ namespace CodeReview.API.Controllers;
 [Route("[controller]")]
 public class ReviewController : ControllerBase
 {
-
     [HttpPost]
     public async Task<IActionResult> UploadFile(IFormFile? file, [FromForm] int timeout, CancellationToken token)
     {
@@ -18,50 +21,102 @@ public class ReviewController : ControllerBase
         {
             return BadRequest("No file uploaded.");
         }
-        
+
         // Получаем поток из загруженного файла
         await using var stream = file.OpenReadStream();
         var mdString = await new CodeReviewService(new DotNetFileReviewer.DotNetPromptsExecutor()).DotNetReviewStreamZipFile(stream, timeout * 60 * 1000, token);
-        
+
+        var reports = await GetReports(mdString);
+
+        // Возвращаем список файлов как JSON
+        return Ok(reports);
+    }
+
+    private async Task<List<FileDto>> GetReports(string mdString)
+    {
         var pdfStream = await GeneratePdfFromMarkdown(mdString);
-        
+
         // Генерация MD файла (просто передаем как текст)
         var mdStream = new MemoryStream();
         var writer = new StreamWriter(mdStream);
         writer.Write(mdString);
         writer.Flush();
         mdStream.Position = 0;
-        
-        #if DEBUG
+
+#if DEBUG
         await using (var fileStream = new FileStream(@"C:\Users\Vadim\Desktop\check.md", FileMode.Create, FileAccess.Write))
         {
             // Копируем данные из MemoryStream в файл
             await mdStream.CopyToAsync(fileStream);
         }
-        
+
         await using (var fileStream = new FileStream(@"C:\Users\Vadim\Desktop\check.pdf", FileMode.Create, FileAccess.Write))
         {
             // Копируем данные из MemoryStream в файл
             await pdfStream.CopyToAsync(fileStream);
         }
-        #endif  
-        
+#endif
+
         // Устанавливаем позиции потоков в начало
         mdStream.Position = 0;
         pdfStream.Position = 0;
 
         var mdBase64 = Convert.ToBase64String(mdStream.ToArray());
         var pdfBase64 = Convert.ToBase64String(pdfStream.ToArray());
-        
+
         var files = new List<FileDto>
         {
             new() { FileName = "mdFile.md", FileContentBase64 = mdBase64 },
             new() { FileName = "pdfFile.pdf", FileContentBase64 = pdfBase64 }
         };
+        return files;
+    }
 
-        // Возвращаем список файлов как JSON
-        return Ok(files);
+    [HttpPost("Multiple")]
+    public async Task<IActionResult> UploadFiles(List<IFormFile> files, [FromForm] int timeout, CancellationToken token)
+    {
+        var memoryStream = new MemoryStream();
+
         
+        using (var archive = new System.IO.Compression.ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            // Добавляем файлы в архив
+            foreach (var file in files.Where(f => f.Length > 0))
+            {
+                // Создаем запись в архиве для каждого файла
+                var entry = archive.CreateEntry(file.FileName, CompressionLevel.Optimal);
+
+                await using var entryStream = entry.Open();
+                await using var fileStream = file.OpenReadStream();
+
+                // Копируем данные из файла в запись архива
+                await fileStream.CopyToAsync(entryStream, token);
+            }
+        }
+        
+        await memoryStream.FlushAsync(token);
+
+        
+        var tasks = new List<Task<TaskResult>>();
+
+        // Передаем memoryStream непосредственно в ZipArchive
+        new DotNetFileReviewer().Execute(ZipArchive.Open(memoryStream), tasks, token);
+
+        // Ожидаем завершения всех задач
+        await Task.WhenAll(tasks);
+
+        // Генерация отчета
+        var sb = new StringBuilder();
+        DotNetFileReviewer.DotNetPromptsExecutor.GenerateReport(
+            sb,
+            tasks.Where(task => !task.IsCanceled)
+                .ToDictionary(
+                    task => task.Result.Name,
+                    task => task
+                ));
+
+        // Возвращаем результат
+        return Ok(await GetReports(sb.ToString()));
     }
 
     private class FileDto
@@ -69,12 +124,13 @@ public class ReviewController : ControllerBase
         public string FileName { get; set; }
         public string FileContentBase64 { get; set; }
     }
-    private async  Task<MemoryStream> GeneratePdfFromMarkdown(string markdownContent)
+
+    private async Task<MemoryStream> GeneratePdfFromMarkdown(string markdownContent)
     {
         // Преобразуем Markdown в HTML
         var htmlContent = Markdown.ToHtml(markdownContent);
 
-        await new BrowserFetcher().DownloadAsync();  // Загружаем нужную версию Chromium
+        await new BrowserFetcher().DownloadAsync(); // Загружаем нужную версию Chromium
 
         var launchOptions = new LaunchOptions
         {
@@ -82,7 +138,7 @@ public class ReviewController : ControllerBase
             Args = ["--no-sandbox", "--disable-setuid-sandbox"] // Параметры для работы на Linux
         };
 
-        
+
         await using var browser = await Puppeteer.LaunchAsync(launchOptions);
         await using var page = await browser.NewPageAsync();
         // Устанавливаем HTML-контент на странице
@@ -99,6 +155,5 @@ public class ReviewController : ControllerBase
             Console.WriteLine("Ошибка при генерации PDF: " + e);
             return new MemoryStream(Encoding.UTF8.GetBytes("PDF генератор не выдержал такого объема :("));
         }
-        
     }
 }

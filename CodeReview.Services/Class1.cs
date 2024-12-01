@@ -317,35 +317,7 @@ public class DotNetFileReviewer : BaseDotNetPrompt
                     await clonedStream.DisposeAsync();
                 }
 
-                sb.AppendLine($"Дата отчета: {DateTime.Now}");
-
-                try
-                {
-                    sb.AppendLine(uniqueTasks[nameof(DotNetDependencyReviewer)].Result.Result);
-                    uniqueTasks.Remove(nameof(DotNetDependencyReviewer));
-                }
-                catch
-                {
-                    // ignored
-                }
-
-                try
-                {
-                    sb.AppendLine(uniqueTasks[nameof(DotNetProjectStructure)].Result.Result);
-                    uniqueTasks.Remove(nameof(DotNetProjectStructure));
-                }
-                catch
-                {
-                    // ignored
-                }
-
-                foreach (var uniqueTask in uniqueTasks.Where(uniqueTask => !uniqueTask.Value.IsCanceled).OrderByDescending(uniqueTask => uniqueTask.Value.Result.TimeEnd))
-                {
-                    sb.AppendLine(uniqueTask.Value.Result.Result);
-                    sb.AppendLine("");
-                    sb.AppendLine("---");
-                    sb.AppendLine("");
-                }
+                GenerateReport(sb, uniqueTasks);
 
 
                 return sb;
@@ -356,6 +328,39 @@ public class DotNetFileReviewer : BaseDotNetPrompt
                 {
                     await clonedStream.DisposeAsync();
                 }
+            }
+        }
+
+        public static void GenerateReport(StringBuilder sb, Dictionary<string, Task<TaskResult>> uniqueTasks)
+        {
+            sb.AppendLine($"Дата отчета: {DateTime.Now}");
+
+            try
+            {
+                sb.AppendLine(uniqueTasks[nameof(DotNetDependencyReviewer)].Result.Result);
+                uniqueTasks.Remove(nameof(DotNetDependencyReviewer));
+            }
+            catch
+            {
+                // ignored
+            }
+
+            try
+            {
+                sb.AppendLine(uniqueTasks[nameof(DotNetProjectStructure)].Result.Result);
+                uniqueTasks.Remove(nameof(DotNetProjectStructure));
+            }
+            catch
+            {
+                // ignored
+            }
+
+            foreach (var uniqueTask in uniqueTasks.Where(uniqueTask => !uniqueTask.Value.IsCanceled).OrderByDescending(uniqueTask => uniqueTask.Value.Result.TimeEnd))
+            {
+                sb.AppendLine(uniqueTask.Value.Result.Result);
+                sb.AppendLine("");
+                sb.AppendLine("---");
+                sb.AppendLine("");
             }
         }
     }
