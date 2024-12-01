@@ -2,14 +2,18 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+using CodeReview.Services.Helpers;
+using CodeReview.Services.Models.Executors;
+using CodeReview.Services.Models.Prompts;
 using Microsoft.CodeAnalysis.MSBuild;
 using ZipArchive = SharpCompress.Archives.Zip.ZipArchive;
 
-namespace CodeReview.Services;
+namespace CodeReview.Services.Services;
 
-public class CodeReviewService(DotNetFileReviewer.IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsExecutor)
+public class CodeReviewService(IPromptsExecutor<BaseDotNetPrompt> dotNetPromptsExecutor)
 {
+    private static string ProjectsPath => Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, "Projects");
+
     public async Task<string> DotNetReviewStreamZipFile(Stream streamZipFile, int timeout, CancellationToken token)
     {
         var zipArchive = ZipArchive.Open(streamZipFile);
@@ -43,18 +47,19 @@ public class CodeReviewService(DotNetFileReviewer.IPromptsExecutor<BaseDotNetPro
             zipArchive.Dispose();
             await sourceStreamForPrompts.DisposeAsync();
             await streamForSca.DisposeAsync();
-            
+
             var unmanagedPointer = IntPtr.Zero;
             if (unmanagedPointer != IntPtr.Zero)
             {
                 Marshal.FreeHGlobal(unmanagedPointer);
                 Console.WriteLine("Unmanaged memory has been freed.");
             }
+
             GC.Collect(2, GCCollectionMode.Forced);
-        
+
             // Стимулируем сборку мусора с оптимизированной сборкой LOH
             GC.Collect(2, GCCollectionMode.Optimized);
-        
+
             Console.WriteLine("LOH очистился (попытка).");
         }
     }
@@ -82,17 +87,13 @@ public class CodeReviewService(DotNetFileReviewer.IPromptsExecutor<BaseDotNetPro
                 var diagnostics = compilation!.GetDiagnostics();
 
                 // Выводим диагностические сообщения (ошибки, предупреждения)
-                foreach (var diagnostic in diagnostics)
-                {
-                    sb.AppendLine("1. " + diagnostic.ToString().Replace(directory + @"\", ""));
-                }
+                foreach (var diagnostic in diagnostics) sb.AppendLine("1. " + diagnostic.ToString().Replace(directory + @"\", ""));
 
                 sb.AppendLine("---");
                 sb.Append("");
             }
         }
+
         Console.WriteLine("Генерация SCA успешно окончена");
     }
-
-    private static string ProjectsPath => Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, "Projects");
 }

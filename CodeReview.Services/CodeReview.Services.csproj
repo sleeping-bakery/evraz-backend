@@ -7,18 +7,24 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Markdig" Version="0.38.0" />
-      <PackageReference Include="Microsoft.CodeAnalysis" Version="4.12.0-3.final" />
-      <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
-        <PrivateAssets>all</PrivateAssets>
-        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      </PackageReference>
-      <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.12.0-3.final" />
-      <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0-3.final" />
-      <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.12.0-3.final" />
-      <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.12.0-3.final" />
-      <PackageReference Include="PuppeteerSharp" Version="20.0.5" />
-      <PackageReference Include="SharpCompress" Version="0.38.0" />
+        <PackageReference Include="Markdig" Version="0.38.0"/>
+        <PackageReference Include="Microsoft.CodeAnalysis" Version="4.12.0-3.final"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.12.0-3.final"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0-3.final"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.12.0-3.final"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.12.0-3.final"/>
+        <PackageReference Include="PuppeteerSharp" Version="20.0.5"/>
+        <PackageReference Include="SharpCompress" Version="0.38.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="Microsoft.AspNetCore.Http.Features">
+            <HintPath>..\..\..\..\..\Program Files\dotnet\shared\Microsoft.AspNetCore.App\8.0.10\Microsoft.AspNetCore.Http.Features.dll</HintPath>
+        </Reference>
     </ItemGroup>
 
 </Project>

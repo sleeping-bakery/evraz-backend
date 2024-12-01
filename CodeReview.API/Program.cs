@@ -1,5 +1,4 @@
 using System.Reflection;
-using CodeReview.Services;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace CodeReview.API;
@@ -16,17 +15,19 @@ public class Program
             Directory.CreateDirectory(path);
         }
         else
-            Directory.CreateDirectory(path);        
-        
+        {
+            Directory.CreateDirectory(path);
+        }
+
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.
 
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.Limits.MaxRequestBodySize = 500_000_000;  // 500 MB, установите нужное значение
-        });        
-        
+            options.Limits.MaxRequestBodySize = 500_000_000; // 500 MB, установите нужное значение
+        });
+
         builder.Services.Configure<FormOptions>(options =>
         {
             options.MultipartBodyLengthLimit = 500_000_000; // Установите максимальный размер (в байтах)
@@ -35,12 +36,12 @@ public class Program
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowAll",
-                policy => policy.AllowAnyOrigin()  // Разрешить любой источник
-                    .AllowAnyMethod()  // Разрешить любой HTTP метод
-                    .AllowAnyHeader());  // Разрешить любые заголовки
+                policy => policy.AllowAnyOrigin() // Разрешить любой источник
+                    .AllowAnyMethod() // Разрешить любой HTTP метод
+                    .AllowAnyHeader()); // Разрешить любые заголовки
         });
 
-        
+
         builder.Services.AddControllers();
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         builder.Services.AddEndpointsApiExplorer();
